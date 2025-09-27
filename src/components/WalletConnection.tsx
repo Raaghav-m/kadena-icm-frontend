@@ -1,43 +1,49 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, Zap, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useWallet } from "@/hooks/useWallet";
+import { formatEther } from "viem";
+import { useEffect, useState } from "react";
 
 interface WalletConnectionProps {
   onConnect?: (address: string) => void;
 }
 
 export function WalletConnection({ onConnect }: WalletConnectionProps) {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState("");
-  const [error, setError] = useState("");
+  const {
+    isConnected,
+    isConnecting,
+    connect,
+    disconnect,
+    connectors,
+    displayAddress,
+    balance,
+    connectError,
+    address,
+  } = useWallet();
 
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    setError("");
-    
-    try {
-      // Simulate wallet connection
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockAddress = "0x742d35Cc6641C02D5c5474db0C38bA1c5f4F9CAe";
-      setWalletAddress(mockAddress);
-      setIsConnected(true);
-      onConnect?.(mockAddress);
-    } catch (err) {
-      setError("Failed to connect wallet");
-    } finally {
-      setIsConnecting(false);
+  // Track if we've already called onConnect
+  const [hasConnected, setHasConnected] = useState(false);
+
+  useEffect(() => {
+    if (address && onConnect && !hasConnected) {
+      onConnect(address);
+      setHasConnected(true);
     }
-  };
+  }, [address, onConnect, hasConnected]);
 
-  const handleDisconnect = () => {
-    setIsConnected(false);
-    setWalletAddress("");
-    setError("");
-  };
+  // Reset hasConnected when disconnected
+  useEffect(() => {
+    if (!isConnected) {
+      setHasConnected(false);
+    }
+  }, [isConnected]);
+
+  // Filter for MetaMask only
+  const metaMaskConnector = connectors.find(
+    (connector) => connector.name === "MetaMask"
+  );
 
   return (
     <motion.div
@@ -61,40 +67,43 @@ export function WalletConnection({ onConnect }: WalletConnectionProps) {
           </div>
           <div>
             <h2 className="text-xl font-orbitron font-bold text-gradient">
-              Wallet Connection
+              Kadena Wallet
             </h2>
             <p className="text-muted-foreground">
-              Connect your MetaMask or Kadena wallet
+              Connect your Kadena-compatible wallet to continue
             </p>
           </div>
         </div>
 
         {!isConnected ? (
           <div className="space-y-4">
-            <Button
-              variant="connect"
-              size="lg"
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className={`w-full ${isConnecting ? "status-connecting" : ""}`}
-            >
-              <Zap className="h-5 w-5" />
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </Button>
+            {metaMaskConnector && (
+              <Button
+                variant="connect"
+                size="lg"
+                onClick={() => connect({ connector: metaMaskConnector })}
+                disabled={isConnecting}
+                className={`w-full ${isConnecting ? "status-connecting" : ""}`}
+              >
+                <Zap className="h-5 w-5 mr-2" />
+                {isConnecting ? "Connecting..." : "Connect Kadena Wallet"}
+              </Button>
+            )}
 
-            {error && (
+            {connectError && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex items-center gap-2 text-destructive"
               >
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{error}</span>
+                <span className="text-sm">{connectError.message}</span>
               </motion.div>
             )}
 
             <div className="text-xs text-muted-foreground text-center">
-              Supported: MetaMask, Kadena Chainweaver, WalletConnect
+              Please make sure you have MetaMask installed with Kadena network
+              configured
             </div>
           </div>
         ) : (
@@ -108,8 +117,13 @@ export function WalletConnection({ onConnect }: WalletConnectionProps) {
                 <div>
                   <div className="font-semibold text-success">Connected</div>
                   <div className="text-sm text-muted-foreground font-mono">
-                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                    {displayAddress}
                   </div>
+                  {balance && (
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Balance: {formatEther(balance.value)} {balance.symbol}
+                    </div>
+                  )}
                 </div>
                 <CheckCircle className="h-6 w-6 text-success" />
               </div>
@@ -118,7 +132,7 @@ export function WalletConnection({ onConnect }: WalletConnectionProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDisconnect}
+              onClick={() => disconnect()}
               className="w-full"
             >
               Disconnect

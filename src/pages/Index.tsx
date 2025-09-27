@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Sparkles, ArrowRightLeft } from "lucide-react";
+import { Zap, Sparkles } from "lucide-react";
 import { WalletConnection } from "@/components/WalletConnection";
 import { NFTMinter } from "@/components/NFTMinter";
-import { CrossChainBridge } from "@/components/CrossChainBridge";
-import { NFTGallery } from "@/components/NFTGallery";
-import { CrossChainMessages } from "@/components/CrossChainMessages";
+import { NFTTransfer } from "@/components/NFTTransfer";
+import { NFTViewer } from "@/components/NFTViewer";
 import { useToast } from "@/hooks/use-toast";
+import { useChainId } from "wagmi";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
-  const [nfts, setNFTs] = useState<any[]>([]);
-  const [transfers, setTransfers] = useState<any[]>([]);
+  const chainId = useChainId();
   const { toast } = useToast();
 
   const handleWalletConnect = (address: string) => {
@@ -25,18 +25,16 @@ const Index = () => {
   };
 
   const handleNFTMint = (nft: any) => {
-    setNFTs(prev => [...prev, nft]);
     toast({
       title: "NFT Minted Successfully! ✨",
-      description: `${nft.name} has been minted on Chain 1`,
+      description: `NFT #${nft.tokenId} has been minted`,
     });
   };
 
-  const handleCrossChainTransfer = (transfer: any) => {
-    setTransfers(prev => [...prev, transfer]);
+  const handleNFTTransfer = (details: any) => {
     toast({
-      title: "Cross-Chain Transfer Complete! 🌉",
-      description: `${transfer.nft.name} bridged to ${transfer.toChain}`,
+      title: "Cross-Chain Transfer Initiated! 🌉",
+      description: `NFT #${details.tokenId} is being transferred to Chain ${details.toChain}`,
     });
   };
 
@@ -68,54 +66,57 @@ const Index = () => {
                 </motion.div>
               </div>
             </motion.div>
-            
+
             <h1 className="text-5xl md:text-7xl font-orbitron font-black text-gradient">
               Kadena CrossChain
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
-              Experience the future of NFTs with seamless cross-chain transfers across Kadena networks
+              Experience the future of NFTs with seamless cross-chain transfers
+              across Kadena networks
             </p>
-            
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4 text-primary" />
-                Multi-Chain Bridge
-              </span>
-              <span className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
-                Real-Time Transfers
-              </span>
-              <span className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-success" />
-                Instant Minting
-              </span>
-            </div>
           </div>
         </div>
       </motion.div>
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-          {/* Wallet Connection */}
+        {/* Wallet Connection */}
+        <div className="mb-8">
           <WalletConnection onConnect={handleWalletConnect} />
-
-          {/* NFT Minter */}
-          <NFTMinter isConnected={isConnected} onMint={handleNFTMint} />
-
-          {/* Cross Chain Bridge */}
-          <CrossChainBridge 
-            nfts={nfts} 
-            isConnected={isConnected}
-            onTransfer={handleCrossChainTransfer}
-          />
-
-          {/* NFT Gallery */}
-          <NFTGallery nfts={nfts} transfers={transfers} />
-
-          {/* Cross Chain Messages */}
-          <CrossChainMessages transfers={transfers} />
         </div>
+
+        {/* Main Functionality Tabs */}
+        <Tabs defaultValue="mint" className="space-y-8">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mx-auto">
+            <TabsTrigger value="mint">NFT Minting</TabsTrigger>
+            <TabsTrigger value="view">NFT Viewer</TabsTrigger>
+            <TabsTrigger value="transfer">Cross Chain</TabsTrigger>
+          </TabsList>
+
+          {/* NFT Minting Section */}
+          <TabsContent value="mint" className="space-y-8">
+            <div className="max-w-xl mx-auto">
+              <NFTMinter isConnected={isConnected} onMint={handleNFTMint} />
+            </div>
+          </TabsContent>
+
+          {/* NFT Viewer Section */}
+          <TabsContent value="view" className="space-y-8">
+            <div className="max-w-xl mx-auto">
+              <NFTViewer />
+            </div>
+          </TabsContent>
+
+          {/* Cross Chain Transfer Section */}
+          <TabsContent value="transfer" className="space-y-8">
+            <div className="max-w-xl mx-auto">
+              <NFTTransfer
+                isConnected={isConnected}
+                onTransfer={handleNFTTransfer}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Footer */}
@@ -136,8 +137,6 @@ const Index = () => {
               <span>Framer Motion</span>
               <span>•</span>
               <span>Tailwind CSS</span>
-              <span>•</span>
-              <span>Hackathon Ready</span>
             </div>
           </div>
         </div>

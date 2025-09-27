@@ -1,67 +1,143 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ImageIcon, Sparkles, Upload, Loader2 } from "lucide-react";
+import { ImageIcon, Sparkles, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import {
+  useChainId,
+  useWriteContract,
+  useAccount,
+  useReadContract,
+} from "wagmi";
+import type { Chain } from "viem";
+import { NFTSenderABI, CONTRACT_ADDRESSES } from "@/config/contracts";
+import { kadenaChain1, kadenaChain2 } from "@/config/chains";
+import { NFTTransfer } from "./NFTTransfer";
 
 interface NFTMinterProps {
   isConnected: boolean;
   onMint?: (nft: any) => void;
+  onTransfer?: (details: any) => void;
 }
 
-export function NFTMinter({ isConnected, onMint }: NFTMinterProps) {
+export function NFTMinter({ isConnected, onMint, onTransfer }: NFTMinterProps) {
   const [isMinting, setIsMinting] = useState(false);
+  const [mintedTokenId, setMintedTokenId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    image: null as File | null,
+    link: "",
   });
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const { toast } = useToast();
+  const chainId = useChainId();
+  const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const { data: tokenURI } = useReadContract({
+    address: CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES],
+    abi: NFTSenderABI,
+    functionName: "tokenURI",
+    args: mintedTokenId ? [BigInt(mintedTokenId)] : undefined,
+    query: {
+      enabled: Boolean(mintedTokenId),
+    },
+  });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData({ ...formData, image: file });
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+  // Get the current chain configuration
+  const currentChain =
+    chainId === kadenaChain1.id
+      ? kadenaChain1
+      : chainId === kadenaChain2.id
+      ? kadenaChain2
+      : null;
+
+  const validateLink = (link: string) => {
+    try {
+      new URL(link);
+      setLinkError("");
+      return true;
+    } catch {
+      setLinkError("Please enter a valid URL");
+      return false;
     }
   };
 
+  const handleLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const link = e.target.value;
+    setFormData({ ...formData, link });
+    if (link) validateLink(link);
+  };
+
   const handleMint = async () => {
-    if (!isConnected) return;
-    
+    if (
+      !isConnected ||
+      !validateLink(formData.link) ||
+      !address ||
+      !currentChain
+    )
+      return;
+
+    const contractAddress =
+      CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
+    if (!contractAddress) {
+      toast({
+        title: "Chain Not Supported",
+        description: "Please switch to a supported chain",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsMinting(true);
-    
+
     try {
-      // Simulate NFT minting process
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const mockNFT = {
+      // Call the contract's mint function
+      const tx = await writeContractAsync({
+        abi: NFTSenderABI,
+        address: contractAddress,
+        functionName: "mint",
+        args: [formData.link],
+        chain: currentChain,
+        account: address,
+      });
+
+      // For now, we'll use a simple counter for the token ID
+      // In production, you should get this from contract events
+      const newTokenId = Date.now() % 1000; // Simple demo ID
+      setMintedTokenId(newTokenId);
+
+      const nft = {
         id: Date.now(),
-        name: formData.name,
-        description: formData.description,
-        image: previewUrl,
-        tokenId: Math.floor(Math.random() * 10000),
-        chain: "Chain 1",
-        owner: "0x742d35Cc6641C02D5c5474db0C38bA1c5f4F9CAe",
+        link: formData.link,
+        tokenId: newTokenId,
+        chain: chainId,
+        owner: address,
+        txHash: tx,
       };
 
-      onMint?.(mockNFT);
-      
+      onMint?.(nft);
+
       // Reset form
-      setFormData({ name: "", description: "", image: null });
-      setPreviewUrl("");
+      setFormData({ link: "" });
+
+      toast({
+        title: "NFT Minting Initiated! 🚀",
+        description: "Transaction submitted to the blockchain",
+      });
     } catch (error) {
       console.error("Minting failed:", error);
+      toast({
+        title: "Minting Failed",
+        description: "Failed to mint NFT. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsMinting(false);
     }
   };
 
-  const isFormValid = formData.name && formData.description && formData.image;
+  const isFormValid = formData.link && !linkError;
 
   return (
     <motion.div
@@ -86,80 +162,64 @@ export function NFTMinter({ isConnected, onMint }: NFTMinterProps) {
               NFT Minter
             </h2>
             <p className="text-muted-foreground">
-              Create your cross-chain NFT on Chain 1
+              Create your NFT on Chain {chainId}
             </p>
           </div>
         </div>
 
         <div className="space-y-6">
-          {/* Image Upload */}
+          {/* Link Input */}
           <div>
-            <Label htmlFor="image" className="text-sm font-medium">
-              Upload Image
+            <Label htmlFor="link" className="text-sm font-medium">
+              NFT Link
             </Label>
-            <div className="mt-2">
-              {previewUrl ? (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="relative group"
+            <div className="mt-2 space-y-2">
+              <div className="relative">
+                <Input
+                  id="link"
+                  type="url"
+                  value={formData.link}
+                  onChange={handleLinkChange}
+                  placeholder="Enter NFT link..."
+                  className={`neon-border pl-9 ${
+                    linkError ? "border-destructive" : ""
+                  }`}
+                />
+                <Link2 className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+              </div>
+              {linkError && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-destructive"
                 >
-                  <img
-                    src={previewUrl}
-                    alt="NFT Preview"
-                    className="w-full h-48 object-cover rounded-lg border border-primary/30"
-                  />
-                  <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                    <Upload className="h-8 w-8 text-primary" />
-                  </div>
-                </motion.div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
-                  <Upload className="h-12 w-12 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">
-                    Click to upload image
-                  </span>
-                </label>
+                  {linkError}
+                </motion.p>
               )}
-              <input
-                id="image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
             </div>
           </div>
 
-          {/* NFT Details */}
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name" className="text-sm font-medium">
-                NFT Name
-              </Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter NFT name..."
-                className="neon-border"
-              />
+          {/* Current Token Info */}
+          {mintedTokenId !== null && tokenURI && (
+            <div className="p-4 rounded-lg bg-card/50 border border-border">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Token ID
+                  </span>
+                  <span className="font-mono">{mintedTokenId}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Token URI
+                  </span>
+                  <span className="font-mono text-xs truncate max-w-[200px]">
+                    {tokenURI as string}
+                  </span>
+                </div>
+              </div>
             </div>
-
-            <div>
-              <Label htmlFor="description" className="text-sm font-medium">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe your NFT..."
-                className="neon-border"
-                rows={3}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Mint Button */}
           <Button
@@ -186,6 +246,15 @@ export function NFTMinter({ isConnected, onMint }: NFTMinterProps) {
             <p className="text-sm text-muted-foreground text-center">
               Connect your wallet to mint NFTs
             </p>
+          )}
+
+          {/* Transfer Option */}
+          {mintedTokenId !== null && (
+            <NFTTransfer
+              isConnected={isConnected}
+              tokenId={mintedTokenId}
+              onTransfer={onTransfer}
+            />
           )}
         </div>
       </Card>
