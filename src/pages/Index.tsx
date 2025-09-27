@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Sparkles } from "lucide-react";
+import { Zap, Sparkles, ArrowRightLeft, MessageSquare } from "lucide-react";
 import { WalletConnection } from "@/components/WalletConnection";
 import { NFTMinter } from "@/components/NFTMinter";
 import { NFTTransfer } from "@/components/NFTTransfer";
@@ -8,12 +8,15 @@ import { NFTViewer } from "@/components/NFTViewer";
 import { useToast } from "@/hooks/use-toast";
 import { useChainId } from "wagmi";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
   const chainId = useChainId();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleWalletConnect = (address: string) => {
     setIsConnected(true);
@@ -74,6 +77,23 @@ const Index = () => {
               Experience the future of NFTs with seamless cross-chain transfers
               across Kadena networks
             </p>
+
+            {/* Messaging Page Link */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => navigate("/messaging")}
+                className="gap-2"
+              >
+                <MessageSquare className="h-5 w-5" />
+                Cross-Chain Messaging
+              </Button>
+            </motion.div>
           </div>
         </div>
       </motion.div>
