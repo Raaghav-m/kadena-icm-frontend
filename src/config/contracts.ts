@@ -16,7 +16,7 @@ export const MESSAGE_SENDER_ADDRESSES = {
 // NFT Receiver addresses for cross-chain transfers
 export const NFT_RECEIVER_ADDRESSES = {
   5920: "0xF95c11D596b1650f11336D33E318475Dc1e21472", // NFT Receiver on Chain 5920
-  5921: "0x31f1bDB782e971256C2aEC2a29A6DfeD13F91DF6", // NFT Receiver on Chain 5921
+  5921: "0x098F11AfD4c818B119906D8f46D7DBa9C8058ceb", // NFT Receiver on Chain 5921
 } as const;
 
 // Cross Chain Messaging App addresses
